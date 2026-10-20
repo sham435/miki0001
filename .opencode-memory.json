@@ -1,0 +1,107 @@
+{
+  "project_name": "kimi-code-local-fullstack",
+  "working_directory": "/Users/sham4/kimi",
+  "tech_stack": [
+    "TypeScript",
+    "Node.js 24.15.0",
+    "pnpm 10.33.0",
+    "React 19",
+    "Vue 3",
+    "Vite 6",
+    "VS Code Extension",
+    "Electron 33",
+    "pi-tui (TUI)"
+  ],
+  "constraints": [
+    "Read files before editing; never assume contents",
+    "Do not touch the /Users/sham4 home git repo metadata",
+    "Keep /Users/sham4/kimi res resources intact; copy rather than move",
+    "Comment-free zones: packages/agent-core-v2, packages/kap-server, packages/transcript",
+    "No co-author attribution in commits",
+    "Changesets required for user-facing changes (.agents/skills/gen-changesets/SKILL.md)"
+  ],
+  "task_history": [
+    {
+      "id": "task-001",
+      "description": "Recon: map repo state, find missing desktop/web source, confirm toolchain",
+      "timestamp": "2026-10-20T13:55:00Z",
+      "files_changed": [".opencode-memory.json"],
+      "status": "completed",
+      "executed_in": "/Users/sham4/kimi"
+    },
+    {
+      "id": "task-002",
+      "description": "Restore apps/kimi-desktop (pre-#1849, parent 56ba8e01) + apps/kimi-web (pre-#2599, e7d5a0ae) from GitHub; install Node 24.15; pnpm install; build all; fix bugs",
+      "timestamp": "2026-10-20T14:10:00Z",
+      "files_changed": [
+        "apps/kimi-desktop/",
+        "apps/kimi-web/",
+        "flake.nix",
+        "pnpm-workspace.yaml",
+        ".opencode-memory.json"
+      ],
+      "status": "in_progress",
+      "executed_in": "/Users/sham4/kimi"
+    }
+  ],
+  "current_task": {
+    "id": "task-002",
+    "description": "Restore desktop+web source, build all, fix bugs",
+    "status": "in_progress",
+    "started_at": "2026-10-20T14:10:00Z"
+  },
+  "next_tasks": [
+    "pnpm run build:packages (running)",
+    "Build apps/kimi-code, apps/kimi-web, apps/vscode, apps/kimi-desktop",
+    "Fix desktop ensure-server (done: spawn foreground `kimi web` on a free port; no lock file)",
+    "Run test suites to surface real bugs",
+    "Fix bugs found in CLI / IDE / web / desktop"
+  ],
+  "user_preferences": {
+    "stack": "restore desktop+web source, build all locally (personal custom build)",
+    "bugs": "agent finds and fixes bugs in desktop/CLI/IDE plugins",
+    "resources": "keep /Users/sham4/kimi res files; copy as needed"
+  },
+  "known_files": {
+    "apps/kimi-code/": "CLI/TUI + kimi web server (committed dist-web bundle)",
+    "apps/kimi-web/": "restored Vue 3 web UI (pre-#2599)",
+    "apps/kimi-desktop/": "restored Electron desktop shell (pre-#1849), adapted to current CLI",
+    "apps/vscode/": "VS Code extension (IDE plugin)",
+    "apps/vis/": "visual debugging tools (server + web)",
+    "apps/kimi-inspect/": "web inspector for kap-server /api/v1/debug",
+    "packages/agent-core-v2/": "DI x Scope agent engine",
+    "packages/kap-server/": "Kimi Code server (REST + WS)",
+    "packages/node-sdk/": "public SDK + harness",
+    "docs/deploy_guidance.md": "Kimi-K2.5 local serving (vLLM/SGLang/KTransformers)",
+    "kimi res/": "resources: kimi.zip, Kimi-K25docs.zip, kimi-dmg/ session logs"
+  },
+  "blockers": [],
+  "changed_files": {
+    "entries": [
+      {
+        "path": "apps/kimi-desktop/",
+        "step": "task-002",
+        "status": "CHANGED",
+        "tldr": "Restored from upstream commit 56ba8e01 (pre-#1849 removal). Adapted ensure-server.ts + sea-path.ts: current CLI has no `server run` and no server/lock file, so the desktop now spawns the server binary with `web --no-open --host 127.0.0.1 --port <free>` detached and polls /api/v1/healthz. sea-path.ts prefers the SEA, falls back to node + dist/main.mjs."
+      },
+      {
+        "path": "apps/kimi-web/",
+        "step": "task-002",
+        "status": "CHANGED",
+        "tldr": "Restored from upstream commit e7d5a0ae (pre-#2599 removal) via commit tarball (git https->ssh rewrite broke the blobless clone). 292 files, Vue 3 + Vite."
+      },
+      {
+        "path": "flake.nix",
+        "step": "task-002",
+        "status": "CHANGED",
+        "tldr": "Added apps/kimi-desktop + apps/kimi-web to workspacePaths and @moonshot-ai/kimi-desktop/kimi-web to workspaceNames (repo hard rule). NOTE: pnpmDeps hash is now stale; Nix is not installed locally so it cannot be regenerated here."
+      },
+      {
+        "path": "pnpm-workspace.yaml",
+        "step": "task-002",
+        "status": "CHANGED",
+        "tldr": "Added allowBuilds (pnpm 10 blocks postinstall by default; `pnpm approve-builds --all` wrote it) for electron/esbuild/node-pty/keytar/tree-sitter-bash/msw/protobufjs/core-js/core-js-pure/@vscode/vsce-sign."
+      }
+    ]
+  }
+}

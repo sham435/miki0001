@@ -1,0 +1,19 @@
+{
+  "changelog": ["@changesets/changelog-github", { "repo": "MymoonAI/miki-code" }],
+  "commit": false,
+  "fixed": [],
+  "linked": [],
+  "access": "public",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "ignore": [
+    "@mymoon-ai/vis",
+    "@mymoon-ai/vis-server",
+    "@mymoon-ai/vis-web",
+    "@mymoon-ai/miki-inspect"
+  ],
+  "snapshot": {
+    "useCalculatedVersion": true,
+    "prereleaseTemplate": "{tag}-{commit}"
+  }
+}

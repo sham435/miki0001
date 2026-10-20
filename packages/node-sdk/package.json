@@ -1,0 +1,70 @@
+{
+  "name": "@mymoon-ai/miki-code-sdk",
+  "version": "0.21.0",
+  "private": true,
+  "description": "TypeScript SDK for the Miki Code Agent",
+  "license": "MIT",
+  "author": "Mymoon AI",
+  "homepage": "https://github.com/MymoonAI/miki-code/tree/main/packages/node-sdk#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MymoonAI/miki-code.git",
+    "directory": "packages/node-sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/MymoonAI/miki-code/issues"
+  },
+  "keywords": [
+    "miki",
+    "sdk",
+    "typescript",
+    "agent",
+    "api"
+  ],
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*.ts"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.mts",
+        "import": "./dist/index.mjs",
+        "default": "./dist/index.mjs"
+      }
+    },
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsdown && pnpm run build:dts",
+    "build:dts": "node scripts/build-dts.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "rm -rf dist .tmp-api-extractor"
+  },
+  "dependencies": {
+    "@antfu/utils": "^9.3.0",
+    "smol-toml": "^1.6.1",
+    "yazl": "^3.3.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@mymoon-ai/agent-core-v2": "workspace:^",
+    "@mymoon-ai/miki-code-oauth": "workspace:^",
+    "@mymoon-ai/miki-code-product": "workspace:^",
+    "@mymoon-ai/klient": "workspace:^",
+    "@mymoon-ai/kosong": "workspace:^",
+    "@types/yazl": "^2.4.6",
+    "jimp": "^1.6.1"
+  }
+}

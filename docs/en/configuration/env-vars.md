@@ -1,0 +1,242 @@
+# Environment variables
+
+Miki Code CLI uses environment variables to control a small number of runtime behaviors: relocating the data directory, turning off telemetry, and temporarily switching models without touching the config file.
+
+::: warning Important: API keys are not configured here
+Credential variables such as `MIKI_API_KEY`, `ANTHROPIC_API_KEY`, and `OPENAI_API_KEY` are **not** read automatically from shell environment variables. Running `export MIKI_API_KEY=xxx` in the terminal does not give any provider its key. They must be written in `config.toml` under `[providers.<name>]` or the `[providers.<name>.env]` sub-table.
+
+The only exceptions are the `MIKI_MODEL_*` family and a provider's `api_key_env` field, two explicit channels that *do* read credentials from the shell. See [Define a model from environment variables](#define-a-model-from-environment-variables-miki_model_) and [Provider credential key names](#provider-credential-key-names-written-in-configtoml).
+
+For background, see [Config overrides: provider credentials](./overrides.md#provider-credentials).
+:::
+
+## Core paths
+
+### `MIKI_CODE_HOME`
+
+Overrides the data root directory; the default is `~/.miki-code`. Once set, the config file, sessions, logs, OAuth credentials, and all other data land under the new path:
+
+```sh
+export MIKI_CODE_HOME="/path/to/custom/miki-code"
+```
+
+> Make sure the directory is writable. Multiple `miki` instances sharing the same `MIKI_CODE_HOME` will share config and credential files.
+
+For the complete data directory structure, see [Data locations](./data-locations.md).
+
+### `MIKI_DISABLE_TELEMETRY`
+
+Set to `1` to turn off anonymous telemetry reporting (also accepts `true`, `yes`, `y`, case-insensitive):
+
+```sh
+export MIKI_DISABLE_TELEMETRY=1
+```
+
+### `MIKI_MODEL_*` family
+
+Switch models temporarily without modifying `config.toml`: when `MIKI_MODEL_NAME` is set, the CLI synthesizes a temporary provider in memory, and the change does not persist after restart. See [Define a model from environment variables](#define-a-model-from-environment-variables-miki_model_).
+
+### `MIKI_CODE_CUSTOM_HEADERS`
+
+::: info Added
+Added in 0.20.2.
+:::
+
+Attaches custom HTTP headers to every outbound model request: both LLM chat requests (across all provider protocols) and `/models` listing requests carry them. Useful when a gateway routes by header, for example to pin a specific cluster:
+
+```sh
+export MIKI_CODE_CUSTOM_HEADERS=$'X-Gateway-Cluster: my-cluster\nX-Custom-Tag: debug'
+```
+
+The format mirrors `ANTHROPIC_CUSTOM_HEADERS`: newline-separated `Name: Value` lines. Names and values are trimmed, and lines without a colon are ignored.
+
+> Precedence: the Miki identity headers (`User-Agent`, `X-Msh-*`) and a provider's `custom_headers` in `config.toml` (see [Config files](./config-files.md#providers)) override same-named entries here. Authentication is protocol-dependent: on the `miki`, `openai`, and `openai_responses` protocols an exact `Authorization` entry replaces the generated bearer token, while `/models` listing requests keep their own authentication. A case variant such as `authorization` is never treated as the same name. It merges with the real header, which can break requests. Do not use this variable for authentication or other reserved headers. Use `custom_headers` when headers need to differ per provider.
+
+## Provider credential key names (written in config.toml)
+
+The key names below are not read directly from the shell. They are key names written inside the `[providers.<name>.env]` sub-table of `config.toml`, serving as fallback values for `api_key` / `base_url`. The CLI reads only from the config file, not from `process.env`.
+
+These conventional names are fixed per provider type. If you would rather keep the key in the shell environment under a name of your choosing, set [`api_key_env`](./config-files.md#providers) on the provider instead: the CLI then reads the key from that variable on every request.
+
+This design lets you keep familiar key name conventions while centralizing secret management in the config file:
+
+```toml
+[providers.miki.env]
+MIKI_API_KEY = "sk-xxx"
+MIKI_BASE_URL = "https://api.mymoon.ai/v1"
+```
+
+Key names per provider:
+
+| Key | Applicable provider | Default |
+| --- | --- | --- |
+| `MIKI_API_KEY` | Miki / Mymoon | None |
+| `MIKI_BASE_URL` | Miki / Mymoon | `https://api.mymoon.ai/v1` |
+| `ANTHROPIC_API_KEY` | Anthropic | None |
+| `ANTHROPIC_BASE_URL` | Anthropic | Follows Anthropic SDK default |
+| `OPENAI_API_KEY` | OpenAI (`openai` and `openai_responses`) | None |
+| `OPENAI_BASE_URL` | OpenAI (`openai` and `openai_responses`) | `https://api.openai.com/v1` |
+| `GOOGLE_API_KEY` | Google GenAI, Vertex AI | None |
+| `VERTEXAI_API_KEY` | Vertex AI | None |
+| `GOOGLE_CLOUD_PROJECT` | Vertex AI | None |
+| `GOOGLE_CLOUD_LOCATION` | Vertex AI | None |
+
+::: warning
+`GOOGLE_APPLICATION_CREDENTIALS` (path to a service account JSON file) is the only exception that goes through the system environment variable mechanism. It is read by the Google SDK directly via the standard ADC flow; the CLI does not participate. All other key names must be placed in the `[providers.<name>.env]` sub-table to take effect.
+:::
+
+For the full provider type and field reference, see [Providers and models](./providers.md).
+
+## OAuth and managed services
+
+This group of variables redirects OAuth authentication and managed service endpoints to a self-hosted or test environment. They are not needed for everyday use.
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `MIKI_CODE_OAUTH_HOST` | OAuth auth host; highest priority | Falls back to `MIKI_OAUTH_HOST` when unset |
+| `MIKI_OAUTH_HOST` | OAuth auth host; fallback for `MIKI_CODE_OAUTH_HOST` | Falls back to `https://auth.miki.com` when unset |
+| `MIKI_CODE_BASE_URL` | Managed API base URL used after OAuth login | `https://api.miki.com/coding/v1` |
+
+::: warning
+`MIKI_CODE_BASE_URL` (OAuth-managed service, targeting `miki.com`) and `MIKI_BASE_URL` (direct API key connection, targeting `mymoon.ai`) are two distinct variables. Use each one in its appropriate context.
+:::
+
+## Define a model from environment variables (`MIKI_MODEL_*`)
+
+Want to switch models for testing without touching `config.toml`? When `MIKI_MODEL_NAME` is set, the CLI synthesizes a temporary provider and model alias from the `MIKI_MODEL_*` variables in memory; nothing is written back to the config file. These variables take priority over `default_model` in `config.toml`, but the `-m <alias>` option at startup still has the highest priority.
+
+```sh
+export MIKI_MODEL_NAME="miki-for-coding"
+export MIKI_MODEL_API_KEY="YOUR_API_KEY"
+export MIKI_MODEL_BASE_URL="https://api.example.com/v1"
+export MIKI_MODEL_MAX_CONTEXT_SIZE="262144"
+export MIKI_MODEL_CAPABILITIES="image_in,thinking"
+miki
+```
+
+Complete variable list:
+
+| Variable | Required | Purpose | Default |
+| --- | --- | --- | --- |
+| `MIKI_MODEL_NAME` | Yes (also the enable switch) | Model id sent to the API | — |
+| `MIKI_MODEL_API_KEY` | Yes | API key | — |
+| `MIKI_MODEL_PROVIDER_TYPE` | No | Provider type: `miki`, `anthropic`, `openai` | `miki` |
+| `MIKI_MODEL_BASE_URL` | No | API base URL | Each type has its own default |
+| `MIKI_MODEL_MAX_CONTEXT_SIZE` | No | Maximum context length (tokens) | `262144` (256 K) |
+| `MIKI_MODEL_CAPABILITIES` | No | Comma-separated capability tags, unioned with auto-detected capabilities | `image_in,thinking` |
+| `MIKI_MODEL_DISPLAY_NAME` | No | Name shown in `/model` | Falls back to `MIKI_MODEL_NAME` |
+| `MIKI_MODEL_MAX_OUTPUT_SIZE` | No | Per-request output cap (`anthropic` only); when set, overrides the built-in Claude ceiling | Model default |
+| `MIKI_MODEL_REASONING_KEY` | No | Reasoning field name override (`openai` only) | Auto-detected |
+| `MIKI_MODEL_THINKING_EFFORT` | No | Thinking effort level: `low`/`medium`/`high`/`xhigh`/`max` | — |
+| `MIKI_MODEL_ADAPTIVE_THINKING` | No | Force adaptive thinking on or off (`anthropic` only) | Inferred from model name |
+
+If `MIKI_MODEL_NAME` is set but a required variable is missing, startup fails immediately with a clear error message.
+
+## Runtime switches
+
+Switches that control the behavior of subsystems such as telemetry, background tasks, and the plugin marketplace:
+
+| Variable | Purpose | Valid values |
+| --- | --- | --- |
+| `MIKI_DISABLE_TELEMETRY` | Disable anonymous telemetry reporting | `1`, `true`, `yes`, `y` (case-insensitive) |
+| `MIKI_CODE_PASSWORD` | Parallel auth credential for `miki web`, recommended when binding beyond loopback (see [Security notes](../guides/web.md#security-notes)) | Any non-empty string; when unset, only the token is valid |
+| `MIKI_CODE_BACKGROUND_KEEP_ALIVE_ON_EXIT` | Keep background tasks when the session closes; higher priority than `config.toml` (default: stop them on exit) | Truthy: `1`/`true`/`yes`/`on`; falsy: `0`/`false`/`no`/`off` |
+| `MIKI_CODE_BACKGROUND_MAX_RUNNING_TASKS` | Cap on concurrently running background tasks; higher priority than `[background] max_running_tasks` (unset = no cap) | Positive integer; invalid values are ignored |
+| `MIKI_CODE_BACKGROUND_BASH_TASK_TIMEOUT_S` | Default timeout (seconds) for background `Bash` tasks, also used to re-arm foreground commands moved to the background; higher priority than `[task] bash_task_timeout_s` (`0` = no timeout) | Non-negative integer; invalid values are ignored |
+| `MIKI_CODE_BACKGROUND_PRINT_BACKGROUND_MODE` | What `miki -p` does while background tasks are still pending after the main turn; higher priority than `[task] print_background_mode` | `exit`, `drain`, or `steer`; invalid values are ignored |
+| `MIKI_CODE_BACKGROUND_PRINT_WAIT_CEILING_S` | Wall-clock ceiling (seconds) for the print-mode drain/steer wait; higher priority than `[task] print_wait_ceiling_s` | Positive integer; invalid values are ignored |
+| `MIKI_CODE_BACKGROUND_PRINT_MAX_TURNS` | Max number of new turns triggered by background-task completions in print mode; higher priority than `[task] print_max_turns` | Positive integer; invalid values are ignored |
+| `MIKI_IMAGE_MAX_EDGE_PX` | Longest-edge ceiling (px) for image compression; higher priority than `[image] max_edge_px` (default `2000`) | Positive integer; invalid values are ignored |
+| `MIKI_IMAGE_READ_BYTE_BUDGET` | Per-image byte budget for model-initiated image reads; higher priority than `[image] read_byte_budget` (default `262144`) | Positive integer; invalid values are ignored |
+| `MIKI_CODE_PLUGIN_MARKETPLACE_URL` | Override the marketplace JSON loaded by `/plugins`; default `https://code.miki.com/miki-code/plugins/marketplace.json` | Also accepts `http://`, `file://` URLs, and local paths |
+| `MIKI_CODE_AGENT_SWARM_MAX_CONCURRENCY` | Cap on AgentSwarm subagents running concurrently during the initial ramp; unset = no cap | Positive integer; invalid values fail fast |
+| `MIKI_CODE_SUBAGENT_SCOPE_CACHE_SIZE` | How many completed subagent scopes stay resident for fast resume; older ones are evicted and rebuilt from persisted state on demand (default `32`; `0` or negative = never evict) | Integer; invalid values fail fast |
+| `MIKI_CODE_SUBAGENT_SCOPE_EVICT_TIMEOUT_MS` | Max wall-clock time (ms) a single subagent scope eviction may take before the eviction queue skips it and moves on (default `15000`) | Positive integer; invalid values fail fast |
+| `MIKI_SUBAGENT_TIMEOUT_MS` | Max wall-clock time (ms) a single `Agent` subagent may run; higher priority than `[subagent] timeout_ms` | Positive integer; invalid values fall back to the config or default |
+| `MIKI_CODE_SWARM_TIMEOUT_MS` | Max wall-clock time (ms) an `AgentSwarm` subagent may run; higher priority than `[swarm] timeout_ms` | Positive integer; invalid values fall back to the config or default |
+| `MIKI_CODE_IDENTITY_NAME` | Name the agent calls itself in the system prompt; higher priority than `[identity] name`, never written back | Any non-empty string; blank values read as unset |
+| `MIKI_CODE_IDENTITY_SLUG` | `User-Agent` product token and MCP client name; higher priority than `[identity] slug`; derived from the name when unset | Any non-empty string; normalized to lowercase with non-alphanumeric runs folded to `-` |
+| `MIKI_CODE_BUILTIN_PRODUCT_SKILLS` | Offer the built-in skills documenting Miki Code itself to the model; higher priority than `builtin_product_skills` | Truthy: `1`/`true`/`yes`/`on`; falsy: `0`/`false`/`no`/`off` |
+| `MIKI_CODE_REPEAT_BREAKER` | Whether repeating the same tool call many times in a row injects reminders and eventually force-stops the turn. Unset keeps this on | Truthy: `1`/`true`/`yes`/`on`; falsy: `0`/`false`/`no`/`off`; any other value is ignored |
+| `MIKI_CODE_EXPERIMENTAL_SUBAGENT_FORK` | Experimental `fork` parameter on `Agent`/`AgentSwarm`: start the subagent from a snapshot of the caller's history instead of an empty context; `MIKI_CODE_EXPERIMENTAL_FLAG=1` also enables it | Truthy: `1`/`true`/`yes`/`on`; falsy: `0`/`false`/`no`/`off` |
+| `MIKI_CODE_EXPERIMENTAL_TOOL_SELECT` | Experimental on-demand tool loading: tools of MCP servers marked `deferred: true` stay out of the top-level tool list and are loaded via `select_tools`; also requires the model to declare the `dynamically_loaded_tools` capability — see [MCP](../customization/mcp.md#loading-tools-on-demand) | Truthy: `1`/`true`/`yes`/`on`; falsy: `0`/`false`/`no`/`off` |
+| `MIKI_CODE_EXPERIMENTAL_TOWER` | Enable experimental [Tower multi-agent coordination](../guides/tower.md) and the `/tower` command; set it before launch. The persistent equivalent is `[experimental] tower = true` in `config.toml`; changing that setting in a running CLI requires a restart. `MIKI_CODE_EXPERIMENTAL_FLAG=1` enables Tower only when `[experimental] tower` is not set in `config.toml`; an explicit `tower = false` takes precedence over the master flag, while this per-feature variable overrides the config | Truthy: `1`/`true`/`yes`/`on`; falsy: `0`/`false`/`no`/`off` |
+| `MIKI_CODE_WATCH` | Attach filesystem watchers that reload config and workspace files; higher priority than `[watch] enabled` (default `true`) | Truthy: `1`/`true`/`yes`/`on`; falsy: `0`/`false`/`no`/`off` |
+| `MIKI_CODE_SEARCH_WORKER` | Run the global search index in a dedicated worker thread; higher priority than `[database] search` (default `true`) | Truthy: `1`/`true`/`yes`/`on`; falsy: `0`/`false`/`no`/`off` |
+| `MIKI_CODE_PERSISTENCE_MINIDB_READMODEL` | Use the minidb-backed read model for session indexing; higher priority than `[database] base` (default `true`) | Truthy: `1`/`true`/`yes`/`on`; falsy: `0`/`false`/`no`/`off` |
+| `MIKI_MCP_STARTUP_TIMEOUT_MS` | Global default connection timeout (ms) for MCP servers; overrides the config file, but `mcp.json` `startupTimeoutMs` still wins | Integer from `1` to `2147483647`; invalid values are ignored |
+| `MIKI_MCP_TOOL_TIMEOUT_MS` | Global default single tool-call timeout (ms) for MCP servers; overrides the config file, but `mcp.json` `toolTimeoutMs` still wins | Integer from `1` to `2147483647`; invalid values are ignored |
+| `MIKI_CODE_TRUST_WORKSPACE` | Mark the current workspace as trusted, equivalent to choosing "Trust this folder" at the interactive trust prompt; takes effect per process and does not write a persistent trust record | Truthy: `1`/`true`/`yes`/`on`; falsy: `0`/`false`/`no`/`off` |
+| `MIKI_LOOP_MAX_STEPS_PER_TURN` | Max Agent steps per turn; higher priority than `[loop_control] max_steps_per_turn` (`0` = unlimited) | Non-negative integer; invalid values are ignored |
+| `MIKI_LOOP_MAX_ATTEMPTS_PER_STEP` | Max total attempts for a failing step (including the first); higher priority than `[loop_control] max_attempts_per_step` | Non-negative integer; invalid values are ignored |
+| `MIKI_CODE_INFINITE_RETRY` | Retry failed LLM requests indefinitely; exponential backoff (32 s cap) honoring `Retry-After`; aborting still cancels immediately | Truthy: `1`/`true`/`yes`/`on`; falsy: `0`/`false`/`no`/`off` |
+| `MIKI_TOKEN_COUNTING_STRATEGY` | Context token count reported externally; higher priority than `[token_counting] strategy` | `measured+estimated`, `measured`, `estimated` (case-insensitive); invalid values are ignored |
+| `MIKI_WEB_SEARCH_BASE_URL` | Web search (`WebSearch`) service API URL; higher priority than the config file; credentials and custom headers not forwarded | Non-blank string; blank values are ignored |
+| `MIKI_WEB_SEARCH_API_KEY` | Web search (`WebSearch`) service API key; replaces both the configured key and the OAuth credential | Non-blank string; blank values are ignored |
+| `MIKI_WEB_FETCH_BASE_URL` | Web fetch (`FetchURL`) service API URL; higher priority than the config file; credentials not forwarded. Without an endpoint, signed-in users get the managed Miki OAuth fetch service before direct local requests | Non-blank string; blank values are ignored |
+| `MIKI_WEB_FETCH_API_KEY` | Web fetch (`FetchURL`) service API key; replaces both the configured key and the OAuth credential | Non-blank string; blank values are ignored |
+| `MIKI_CODE_EXPERIMENTAL_FLAG` | Enable all registered experimental features for this process | `1`, `true`, `yes`, `on` |
+| `MIKI_SHELL_PATH` | Override the Git Bash path on Windows (used when auto-detection fails) | Absolute path |
+| `MIKI_MODEL_MAX_COMPLETION_TOKENS` | Hard cap on `max_completion_tokens` per LLM step; applies to the `miki` provider only | Positive integer; `0` or negative disables clamping |
+| `MIKI_MODEL_TEMPERATURE` | Sampling temperature for every request; `miki` provider only (global, independent of `MIKI_MODEL_NAME`) | Number, e.g. `0.3` |
+| `MIKI_MODEL_TOP_P` | Nucleus-sampling `top_p` for every request; `miki` provider only (global) | Number, e.g. `0.95` |
+| `MIKI_MODEL_THINKING_EFFORT` | Force a thinking effort (`thinking.effort`), bypassing the model's declared `support_efforts`; `miki` provider only | An effort value, e.g. `max` |
+| `MIKI_MODEL_THINKING_KEEP` | Preserved-thinking passthrough: `thinking.keep` on `miki`, a `clear_thinking_20251015` edit on `anthropic`; overrides `[thinking] keep` | A value the API accepts, e.g. `all`; an off-value (`false`/`0`/`no`/`off`/`none`/`null`) disables it |
+| `MIKI_CODE_LLM_HEADERS_TIMEOUT_MS` | Max time (ms) an LLM request on the `openai` / `openai-responses` / `anthropic` protocols may wait for the response headers (first byte), replacing the HTTP client's default 300 s headers timeout — raise it for long non-streaming thinking; unset keeps the default; the SDK's own total request timeout (default 10 minutes) still caps each attempt; not supported for `google-genai` (its SDK exposes no dispatcher option) or behind a SOCKS proxy (requests still go through the proxy) | Positive integer no greater than 2147483647; invalid values fail the request |
+| `MIKI_CODE_NO_AUTO_UPDATE` | Fully disable the update preflight: no check, background install, or prompt. Legacy alias `MIKI_CLI_NO_AUTO_UPDATE` also honored | Truthy: `1`/`true`/`yes`/`on` |
+| `MIKI_DISABLE_CRON` | Disable the scheduled-task tool (`CronCreate` rejects new schedules; existing tasks do not fire) | `1` to disable |
+
+The `MIKI_CODE_INFINITE_RETRY`, `MIKI_CODE_IDENTITY_*`, and `MIKI_CODE_BUILTIN_PRODUCT_SKILLS` variables are read by the `agent-core-v2` engine.
+
+## Diagnostic logs
+
+These variables control log level and file rotation, read once at process startup:
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `MIKI_LOG_LEVEL` | Log level: `off`, `error`, `warn`, `info`, `debug` | `info` |
+| `MIKI_LOG_GLOBAL_MAX_BYTES` | Maximum bytes per global log file | `6291456` (6 MB) |
+| `MIKI_LOG_GLOBAL_FILES` | Number of global log files to retain | `5` |
+| `MIKI_LOG_SESSION_MAX_BYTES` | Maximum bytes per session log file | `5242880` (5 MB) |
+| `MIKI_LOG_SESSION_FILES` | Number of session log files to retain | `3` |
+
+## System environment variables
+
+The CLI also reads several standard system variables to detect the runtime environment; it does not modify them:
+
+- `HOME`: used to resolve the default data path
+- `VISUAL`, `EDITOR`: external editor command (`VISUAL` takes precedence)
+- `PATH`: used to locate dependencies such as `rg`, `fd`, `fdfind`, and `git`; on Windows, Git Bash detection checks each `git.exe` found on `PATH`, including package-manager shims such as Scoop
+- `NO_COLOR`, `FORCE_COLOR`: control color output (following the [no-color.org](https://no-color.org) convention)
+- `CI`: when non-empty and not `"0"`, disables theme detection and falls back to the dark theme
+- `TERM_PROGRAM`, `TERM`, `TMUX`: detect terminal features and notification support
+- `DISPLAY`, `WAYLAND_DISPLAY`, `XDG_SESSION_TYPE`: detect Linux graphical sessions (for clipboard and image features)
+- `WSL_DISTRO_NAME`, `WSLENV`: detect WSL for the clipboard PowerShell bridge
+- `LOCALAPPDATA`: used on Windows as a fallback when probing for the Git Bash installation path
+
+## HTTP proxy
+
+Miki Code honors the standard proxy environment variables for all outbound traffic: model API calls, MCP servers, web tools, telemetry, sign-in, and update checks:
+
+- `HTTP_PROXY` / `http_proxy`: proxy for `http://` requests
+- `HTTPS_PROXY` / `https_proxy`: proxy for `https://` requests
+- `ALL_PROXY` / `all_proxy`: fallback proxy used when the scheme-specific variable is unset; this is where a SOCKS proxy is usually set
+- `NO_PROXY` / `no_proxy`: comma-separated hosts that bypass the proxy
+
+### Proxy types and precedence
+
+Both HTTP(S) and SOCKS proxies are supported. A SOCKS proxy is recognized by its scheme: `socks5://`, `socks5h://`, `socks4://`, or `socks://` (an alias for `socks5://`). It is typically set via `ALL_PROXY` (the form used by tools like Clash and V2RayN). An HTTP(S) proxy takes precedence over `ALL_PROXY` for HTTP/HTTPS traffic.
+
+### Activation conditions and loopback addresses
+
+The proxy is applied only when one of these variables is set; otherwise connections are made directly. Loopback hosts (`localhost`, `127.0.0.1`, `::1`) always bypass the proxy, so a local server such as a localhost MCP server keeps working when a proxy is configured. Add your own internal hosts to `NO_PROXY` to exempt them too.
+
+### MCP child processes
+
+Stdio MCP servers that run as Node child processes honor `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` automatically when the child's Node version supports `NODE_USE_ENV_PROXY` (Node ≥ 22.21 or ≥ 24.5); SOCKS proxying applies to Miki Code's own traffic only.
+
+## Next steps
+
+- [Config overrides](./overrides.md) — how environment variables, CLI options, and the config file interact by priority
+- [Data locations](./data-locations.md) — directory structure affected by `MIKI_CODE_HOME`
+- [Providers and models](./providers.md) — full connection examples per provider type

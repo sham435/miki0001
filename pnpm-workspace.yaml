@@ -1,0 +1,24 @@
+packages:
+  - packages/*
+  - apps/*
+  - apps/vis/server
+  - apps/vis/web
+  - docs
+allowBuilds:
+  '@vscode/vsce-sign': true
+  core-js: true
+  core-js-pure: true
+  electron: true
+  esbuild: true
+  keytar: true
+  msw: true
+  node-pty: true
+  protobufjs: true
+  tree-sitter-bash: true
+
+catalog:
+  zod: 4.3.6
+
+overrides:
+  "miki-code>@tailwindcss/vite": "4.1.18"
+  "miki-code>tailwindcss": "4.1.18"
